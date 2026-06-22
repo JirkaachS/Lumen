@@ -8,7 +8,7 @@
 ; writes an HKCU Run entry, matching the in-app autostart toggle.
 
 #define AppName "Lumen"
-#define AppVersion "1.0.4"
+#define AppVersion "1.0.5"
 #define AppPublisher "JirkaachS"
 #define AppURL "https://github.com/JirkaachS/Lumen"
 #define AppExe "Lumen.exe"
@@ -24,7 +24,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=Output
-OutputBaseFilename=LumenSetup-{#AppVersion}
+OutputBaseFilename=LumenSetup
 SetupIconFile=..\..\lumen\assets\lumen.ico
 Compression=lzma2
 SolidCompression=yes

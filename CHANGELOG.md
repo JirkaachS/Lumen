@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.5
+
+### Changed
+- Release artifacts now use stable, version-less filenames (`LumenSetup.exe`,
+  `Lumen.dmg`) so the README's download links point at
+  `releases/latest/download/...` and always fetch the newest build — no manual
+  version edits needed.
+
 ## 1.0.4
 
 ### Fixed

@@ -71,19 +71,20 @@ works on Windows and on Linux (via `xrandr`).
 ## Install
 
 ### Windows
-1. Grab [`LumenSetup-1.0.4.exe`](https://github.com/JirkaachS/Lumen/releases/download/v1.0.4/LumenSetup-1.0.4.exe) from the [Releases](https://github.com/JirkaachS/Lumen/releases) page.
+1. Grab [`LumenSetup.exe`](https://github.com/JirkaachS/Lumen/releases/latest/download/LumenSetup.exe) (always the latest release) from the [Releases](https://github.com/JirkaachS/Lumen/releases) page.
 2. Run it. Tick **"Launch Lumen automatically when Windows starts"** if you want autostart.
 
-Or run the portable `Lumen.exe` directly — no installation required.
+Or run the portable [`Lumen.exe`](https://github.com/JirkaachS/Lumen/releases/latest/download/Lumen.exe) directly — no installation required.
 
 ### macOS
-1. Download [`Lumen-1.0.4.dmg`](https://github.com/JirkaachS/Lumen/releases/download/v1.0.4/Lumen-1.0.4.dmg), open it and drag **Lumen** to Applications.
+1. Download [`Lumen.dmg`](https://github.com/JirkaachS/Lumen/releases/latest/download/Lumen.dmg) (always the latest release), open it and drag **Lumen** to Applications.
 2. First launch: right-click → Open (unsigned build). Enable autostart from
    **Settings → Launch at system startup**.
 
 ### Linux
+Download the latest [`lumen-linux-x86_64.tar.gz`](https://github.com/JirkaachS/Lumen/releases/latest/download/lumen-linux-x86_64.tar.gz), extract it, then:
 ```bash
-# from a release tarball or a clone
+# from the extracted tarball or a clone
 ./installer/linux/install.sh            # install for current user
 ./installer/linux/install.sh --autostart # install + launch at login
 ```
