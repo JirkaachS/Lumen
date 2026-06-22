@@ -32,7 +32,7 @@ if [[ ! -d "${APP}" ]]; then
 fi
 
 echo "Creating DMG…"
-DMG="dist/Lumen-1.0.3.dmg"
+DMG="dist/Lumen-1.0.4.dmg"
 rm -f "${DMG}"
 hdiutil create -volname "Lumen" -srcfolder "dist/Lumen.app" -ov -format UDZO "${DMG}" || \
     echo "DMG step skipped (no .app bundle)."

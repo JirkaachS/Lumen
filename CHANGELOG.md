@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.4
+
+### Fixed
+- **Process explorer selection now works** — rows were built as buttons with
+  labels overlaid on top, which swallowed the click. Rows are now frames with
+  the click bound across the whole row.
+
+### Added
+- **Real app icons in the process explorer**, extracted from each executable via
+  the Win32 icon API (falls back to a letter badge when an icon can't be read).
+
 ## 1.0.3
 
 ### Added

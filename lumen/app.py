@@ -47,6 +47,7 @@ from .widgets import GlowSlider, GradientPanel, RadialDial
 from . import resolution as resmod
 from .automation import AppWatcher, list_window_apps, normalize_name
 from .vibrance import get_vibrance_backend
+from .winicon import extract_icon
 from . import theme as T
 
 try:
@@ -699,6 +700,8 @@ class LumenApp:
                                          scrollbar_button_hover_color=T.BORDER2)
         listing.pack(fill="both", expand=True, padx=10, pady=(0, 12))
 
+        self._proc_icons = []
+
         def pick(name):
             self._game_proc.delete(0, "end")
             self._game_proc.insert(0, name)
@@ -707,32 +710,47 @@ class LumenApp:
             except Exception:
                 pass
 
+        def bind_click(widget, fn):
+            widget.bind("<Button-1>", lambda e: fn())
+            for c in widget.winfo_children():
+                bind_click(c, fn)
+
         def reload():
             for w in listing.winfo_children():
                 w.destroy()
+            self._proc_icons.clear()
             apps = list_window_apps()
             if not apps:
                 ctk.CTkLabel(listing, text="No apps found.", text_color=T.MUTED2,
                              font=T.f(12)).pack(pady=30)
                 return
             for app in apps:
-                row = ctk.CTkButton(
-                    listing, text="", height=46, fg_color=T.SURF2, hover_color=T.SURF3,
-                    corner_radius=10, command=lambda n=app["name"]: pick(n))
+                row = ctk.CTkFrame(listing, fg_color=T.SURF2, corner_radius=10)
                 row.pack(fill="x", pady=3, padx=2)
                 inner = ctk.CTkFrame(row, fg_color="transparent")
-                inner.place(relx=0.0, rely=0.5, anchor="w", x=12)
-                letter = (app["name"][:1] or "?").upper()
-                ctk.CTkLabel(inner, text=letter, width=30, height=30,
-                             fg_color=self.accent.dim, text_color=self.accent.main,
-                             corner_radius=8, font=T.f(13, "bold")).pack(side="left", padx=(0, 10))
+                inner.pack(side="left", fill="x", expand=True, padx=12, pady=8)
+
+                icon_img = extract_icon(app["path"], 32)
+                if icon_img is not None:
+                    cimg = ctk.CTkImage(icon_img, size=(28, 28))
+                    self._proc_icons.append(cimg)
+                    ctk.CTkLabel(inner, image=cimg, text="").pack(side="left", padx=(0, 10))
+                else:
+                    letter = (app["name"][:1] or "?").upper()
+                    ctk.CTkLabel(inner, text=letter, width=30, height=30,
+                                 fg_color=self.accent.dim, text_color=self.accent.main,
+                                 corner_radius=8, font=T.f(13, "bold")).pack(side="left", padx=(0, 10))
+
                 txt = ctk.CTkFrame(inner, fg_color="transparent")
-                txt.pack(side="left")
+                txt.pack(side="left", fill="x", expand=True)
                 ctk.CTkLabel(txt, text=app["name"], text_color=T.TEXT,
                              font=T.f(12, "bold"), anchor="w").pack(anchor="w")
                 sub = app["path"] or app.get("title", "")
-                ctk.CTkLabel(txt, text=sub[:48], text_color=T.MUTED,
+                ctk.CTkLabel(txt, text=sub[:52], text_color=T.MUTED,
                              font=T.f(9), anchor="w").pack(anchor="w")
+
+                bind_click(row, lambda n=app["name"]: pick(n))
+                row.configure(cursor="hand2")
 
         ctk.CTkButton(bar, text="\u21BB  Reload", width=90, height=30, fg_color=T.SURF3,
                       hover_color=T.BORDER2, text_color=T.MUTED, corner_radius=8,
