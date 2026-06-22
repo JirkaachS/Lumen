@@ -42,6 +42,7 @@ from .hotkeys import (
     hotkeys_available,
     mouse_available,
 )
+from .widgets import GlowSlider, GradientPanel, RadialDial
 from . import theme as T
 
 try:
@@ -263,8 +264,9 @@ class LumenApp:
                                       scrollbar_button_color=T.BORDER,
                                       scrollbar_button_hover_color=T.BORDER2)
         wrap.pack(fill="both", expand=True, padx=14, pady=(0, 4))
+        self._slider_widgets = {}
 
-        # Monitor + preview row
+        # Display selector
         top = ctk.CTkFrame(wrap, fg_color=T.SURF2, corner_radius=14)
         top.pack(fill="x", pady=(8, 12))
         ctk.CTkLabel(top, text="DISPLAY", text_color=T.MUTED2, font=T.f(9),
@@ -276,51 +278,61 @@ class LumenApp:
             corner_radius=8, font=T.f(12), dynamic_resizing=False,
             command=self._on_monitor_change,
         )
-        self.monitor_combo.pack(fill="x", padx=16, pady=(0, 10))
+        self.monitor_combo.pack(fill="x", padx=16, pady=(0, 14))
 
-        self._preview = tk.Canvas(top, height=46, highlightthickness=0, bd=0, bg=T.SURF2)
-        self._preview.pack(fill="x", padx=16, pady=(0, 14))
-        self._preview.bind("<Configure>", lambda e: self._draw_preview())
+        # Hero: gamma dial + preview/brightness/temperature
+        hero = ctk.CTkFrame(wrap, fg_color=T.SURF2, corner_radius=18)
+        hero.pack(fill="x", pady=(0, 12))
+        hero.grid_columnconfigure(1, weight=1)
 
-        # Sliders
-        self._slider_widgets = {}
-        self.s_gamma = self._slider_card(
-            wrap, "GAMMA", GAMMA_MIN, GAMMA_MAX, self.cur_gamma,
-            lambda v: f"{v:.2f}", self._on_gamma, "gamma")
-        self.s_bright = self._slider_card(
-            wrap, "BRIGHTNESS", BRIGHTNESS_MIN, BRIGHTNESS_MAX, self.cur_brightness,
-            lambda v: f"{int(v * 100)}%", self._on_brightness, "bright")
-        self.s_temp = self._slider_card(
-            wrap, "TEMPERATURE", TEMP_MIN, TEMP_MAX, self.cur_temp,
-            lambda v: f"{int(v)}K", self._on_temp, "temp")
+        self._dial = RadialDial(
+            hero, size=216, lo=GAMMA_MIN, hi=GAMMA_MAX, value=self.cur_gamma,
+            bg=T.SURF2, accent_dim=self.accent.dim, accent=self.accent.main,
+            accent_bright=self.accent.bright, on_change=self._on_gamma,
+            fmt=lambda v: f"{v:.2f}", caption="GAMMA")
+        self._dial.grid(row=0, column=0, padx=(14, 6), pady=14)
+        self._slider_widgets["gamma"] = (self._dial, None, lambda v: f"{v:.2f}")
 
-        ctk.CTkLabel(wrap, text="PRESETS", text_color=T.MUTED2, font=T.f(9),
-                     anchor="w").pack(anchor="w", padx=6, pady=(8, 6))
+        right = ctk.CTkFrame(hero, fg_color="transparent")
+        right.grid(row=0, column=1, sticky="nsew", padx=(6, 18), pady=18)
+        right.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(right, text="LIVE PREVIEW", text_color=T.MUTED2,
+                     font=T.f(9)).pack(anchor="w")
+        self._preview_panel = GradientPanel(
+            right, width=360, height=64, bg=T.SURF2, gamma=self.cur_gamma,
+            brightness=self.cur_brightness, temperature=self.cur_temp)
+        self._preview_panel.pack(fill="x", pady=(5, 16))
+
+        self._slider_row(right, "BRIGHTNESS", "brightness", BRIGHTNESS_MIN,
+                         BRIGHTNESS_MAX, self.cur_brightness,
+                         lambda v: f"{int(v * 100)}%", self._on_brightness)
+        self._slider_row(right, "TEMPERATURE", "temperature", TEMP_MIN, TEMP_MAX,
+                         self.cur_temp, lambda v: f"{int(v)}K", self._on_temp)
+
+        head = ctk.CTkFrame(wrap, fg_color="transparent")
+        head.pack(fill="x", pady=(6, 6))
+        ctk.CTkLabel(head, text="PRESETS", text_color=T.MUTED2, font=T.f(9)).pack(side="left", padx=2)
+        ctk.CTkButton(head, text="reset all", width=64, height=24, fg_color=T.SURF3,
+                      hover_color=T.BORDER2, text_color=T.MUTED, corner_radius=8,
+                      font=T.f(10), command=self._reset_all).pack(side="right", padx=2)
         self._preset_frame = ctk.CTkFrame(wrap, fg_color="transparent")
         self._preset_frame.pack(fill="x")
         self._render_presets()
 
-    def _slider_card(self, parent, label, lo, hi, value, fmt, cmd, key):
-        card = ctk.CTkFrame(parent, fg_color=T.SURF2, corner_radius=14)
-        card.pack(fill="x", pady=6)
-        head = ctk.CTkFrame(card, fg_color="transparent")
-        head.pack(fill="x", padx=16, pady=(12, 0))
+    def _slider_row(self, parent, label, kind, lo, hi, value, fmt, cmd):
+        head = ctk.CTkFrame(parent, fg_color="transparent")
+        head.pack(fill="x", pady=(4, 0))
         ctk.CTkLabel(head, text=label, text_color=T.MUTED2, font=T.f(9)).pack(side="left")
-        val_lbl = ctk.CTkLabel(head, text=fmt(value), text_color=T.WHITE,
-                               font=T.f(22, "bold"))
-        val_lbl.pack(side="right")
-        ctk.CTkButton(head, text="reset", width=44, height=22, fg_color=T.SURF3,
-                      hover_color=T.BORDER2, text_color=T.MUTED, corner_radius=6,
-                      font=T.f(10), command=lambda k=key: self._reset_one(k)).pack(side="right", padx=(0, 10))
-        slider = ctk.CTkSlider(
-            card, from_=lo, to=hi, command=cmd, button_color=self.accent.main,
-            button_hover_color=self.accent.bright, progress_color=self.accent.dim,
-            fg_color=T.SURF3, height=16, corner_radius=8,
-        )
-        slider.set(value)
-        slider.pack(fill="x", padx=16, pady=(6, 14))
-        self._slider_widgets[key] = (slider, val_lbl, fmt)
-        return slider
+        pill = ctk.CTkLabel(head, text=fmt(value), text_color=self.accent.main,
+                            fg_color=T.SURF3, corner_radius=8, font=T.f(12, "bold"),
+                            width=58, height=22)
+        pill.pack(side="right")
+        sl = GlowSlider(parent, width=360, height=40, lo=lo, hi=hi, value=value,
+                        kind=kind, bg=T.SURF2, accent=self.accent.main,
+                        accent_bright=self.accent.bright, on_change=cmd)
+        sl.pack(fill="x", pady=(4, 12))
+        self._slider_widgets[kind] = (sl, pill, fmt)
 
     def _render_presets(self):
         for w in self._preset_frame.winfo_children():
@@ -330,37 +342,55 @@ class LumenApp:
             active = (abs(preset.gamma - self.cur_gamma) < 0.02 and
                       abs(preset.brightness - self.cur_brightness) < 0.02 and
                       abs(preset.temperature - self.cur_temp) < 60)
-            btn = ctk.CTkButton(
+            card = ctk.CTkFrame(
                 self._preset_frame,
-                text=f"{preset.name}\n\u03b3{preset.gamma:.2f}  {int(preset.temperature)}K",
-                height=54,
                 fg_color=self.accent.dim if active else T.SURF2,
-                hover_color=T.SURF3,
-                text_color=self.accent.main if active else T.TEXT,
-                border_width=1 if active else 0, border_color=self.accent.main,
-                corner_radius=12, font=T.f(11),
-                command=lambda p=preset: self.apply_profile(p),
-            )
+                corner_radius=12, border_width=1,
+                border_color=self.accent.main if active else T.SURF2)
             r, c = divmod(i, cols)
-            btn.grid(row=r, column=c, padx=4, pady=4, sticky="ew")
+            card.grid(row=r, column=c, padx=4, pady=4, sticky="ew")
+            inner = ctk.CTkFrame(card, fg_color="transparent")
+            inner.pack(fill="x", padx=12, pady=9)
+            rm, gm, bm = temperature_to_rgb(int(preset.temperature))
+            dot = f"#{int(rm*255):02x}{int(gm*255):02x}{int(bm*255):02x}"
+            ctk.CTkLabel(inner, text="\u25CF", text_color=dot,
+                         font=T.f(13)).pack(side="left", padx=(0, 8))
+            txt = ctk.CTkFrame(inner, fg_color="transparent")
+            txt.pack(side="left", fill="x", expand=True)
+            ctk.CTkLabel(txt, text=preset.name,
+                         text_color=self.accent.main if active else T.TEXT,
+                         font=T.f(12, "bold"), anchor="w").pack(anchor="w")
+            ctk.CTkLabel(txt, text=f"\u03b3{preset.gamma:.2f} · {int(preset.temperature)}K",
+                         text_color=T.MUTED, font=T.f(9), anchor="w").pack(anchor="w")
+            for widget in (card, inner, txt):
+                widget.bind("<Button-1>", lambda e, p=preset: self.apply_profile(p))
+            for child in inner.winfo_children() + txt.winfo_children():
+                child.bind("<Button-1>", lambda e, p=preset: self.apply_profile(p))
         for c in range(cols):
             self._preset_frame.grid_columnconfigure(c, weight=1)
 
-    def _draw_preview(self):
-        cv = self._preview
-        cv.delete("all")
-        w = cv.winfo_width() or 400
-        h = cv.winfo_height() or 46
-        rm, gm, bm = temperature_to_rgb(self.cur_temp)
-        inv = 1.0 / max(0.01, self.cur_gamma)
-        steps = max(2, w)
-        for x in range(steps):
-            t = x / (steps - 1)
-            base = (t ** inv) * self.cur_brightness
-            r = int(max(0, min(255, base * rm * 255)))
-            g = int(max(0, min(255, base * gm * 255)))
-            b = int(max(0, min(255, base * bm * 255)))
-            cv.create_line(x, 0, x, h, fill=f"#{r:02x}{g:02x}{b:02x}")
+    def _active_preset_sig(self):
+        return tuple(
+            (abs(p.gamma - self.cur_gamma) < 0.02 and
+             abs(p.brightness - self.cur_brightness) < 0.02 and
+             abs(p.temperature - self.cur_temp) < 60)
+            for p in DEFAULT_PRESETS
+        )
+
+    def _refresh_readouts(self):
+        try:
+            for key, value in (("brightness", self.cur_brightness),
+                               ("temperature", self.cur_temp)):
+                sl, pill, fmt = self._slider_widgets[key]
+                if pill is not None:
+                    pill.configure(text=fmt(value))
+            self._preview_panel.update_values(self.cur_gamma, self.cur_brightness, self.cur_temp)
+            sig = self._active_preset_sig()
+            if sig != getattr(self, "_preset_sig", None):
+                self._preset_sig = sig
+                self._render_presets()
+        except Exception:
+            pass
 
     # ════════════════════════════════════════════════════════════════════
     # Hotkeys page
@@ -584,13 +614,10 @@ class LumenApp:
     def _sync_sliders(self):
         self._programmatic = True
         try:
-            for key, value in (("gamma", self.cur_gamma), ("bright", self.cur_brightness),
-                               ("temp", self.cur_temp)):
-                slider, lbl, fmt = self._slider_widgets[key]
-                slider.set(value)
-                lbl.configure(text=fmt(value))
-            self._draw_preview()
-            self._render_presets()
+            self._dial.set_value(self.cur_gamma)
+            self._slider_widgets["brightness"][0].set_value(self.cur_brightness)
+            self._slider_widgets["temperature"][0].set_value(self.cur_temp)
+            self._refresh_readouts()
         except Exception:
             pass
         self._programmatic = False
@@ -616,23 +643,21 @@ class LumenApp:
     def _live_apply(self):
         self._anim_token += 1  # cancel any running animation
         self._push(self.cur_gamma, self.cur_brightness, self.cur_temp)
-        for key, value in (("gamma", self.cur_gamma), ("bright", self.cur_brightness),
-                           ("temp", self.cur_temp)):
-            slider, lbl, fmt = self._slider_widgets[key]
-            lbl.configure(text=fmt(value))
-        self._draw_preview()
-        self._render_presets()
+        self._refresh_readouts()
         self._save()
 
     def _reset_one(self, key):
         if key == "gamma":
             self.cur_gamma = 1.0
-        elif key == "bright":
+        elif key == "brightness":
             self.cur_brightness = 1.0
         else:
             self.cur_temp = TEMP_DEFAULT
         self._live_apply()
         self._sync_sliders()
+
+    def _reset_all(self):
+        self.apply_profile(Profile("Neutral", 1.0, 1.0, TEMP_DEFAULT))
 
     # ════════════════════════════════════════════════════════════════════
     # Hotkey recording / binding
@@ -847,13 +872,20 @@ class LumenApp:
         self.accent.set(name)
         self.settings.accent = self.accent.name
         save_settings(self.settings)
-        self._status(f"Accent set to {name}. Restart to fully apply.")
-        # live-update the most visible bits
+        self._status(f"Accent set to {name}")
+        # live-update custom widgets
+        try:
+            self._dial.set_accent(self.accent.dim, self.accent.main, self.accent.bright)
+            self._slider_widgets["brightness"][0].set_accent(self.accent.main, self.accent.bright)
+            self._slider_widgets["temperature"][0].set_accent(self.accent.main, self.accent.bright)
+            for key in ("brightness", "temperature"):
+                self._slider_widgets[key][1].configure(text_color=self.accent.main)
+        except Exception:
+            pass
         for n, btn in self.nav_btns.items():
             if n == self._page_title.cget("text"):
                 btn.configure(text_color=self.accent.main, fg_color=T.SURF3)
         self._render_presets()
-        # refresh swatches
         self._goto(self._page_title.cget("text"))
 
     def _select_monitor_initial(self):

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.1
+
+### Changed
+- **Complete UI rework** for a modern, premium look:
+  - New hero **circular gamma dial** with an antialiased, glowing gradient arc
+    and a draggable handle (PIL-rendered, supersampled).
+  - **Gradient "glow" sliders** for brightness and temperature — the temperature
+    track now shows the real Kelvin color spectrum, with a soft glowing knob.
+  - Smooth, rounded **live-preview panel** rendered with Pillow.
+  - Redesigned preset cards with per-preset color dots, value pills and a
+    one-tap "reset all".
+  - Live accent recoloring across the dial, sliders and preview.
+
 ## 1.0.0
 
 Complete ground-up rework of the original Windows-only "Gamma Control",
