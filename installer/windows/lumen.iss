@@ -8,7 +8,7 @@
 ; writes an HKCU Run entry, matching the in-app autostart toggle.
 
 #define AppName "Lumen"
-#define AppVersion "1.0.1"
+#define AppVersion "1.0.2"
 #define AppPublisher "JirkaachS"
 #define AppURL "https://github.com/JirkaachS/Lumen"
 #define AppExe "Lumen.exe"

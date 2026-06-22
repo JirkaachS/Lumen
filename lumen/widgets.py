@@ -104,6 +104,7 @@ class RadialDial(tk.Canvas):
         tw = int(14 * SS)
         r = s / 2 - tw - int(10 * SS)
         box = [cx - r, cy - r, cx + r, cy + r]
+        rc = r - tw / 2  # arc centerline (PIL arc width extends inward from box)
 
         # track
         self._arc(d, box, self._start, self._start + self._sweep, tw,
@@ -117,10 +118,10 @@ class RadialDial(tk.Canvas):
                       lambda t: lerp(self.c_dim, self.c_bright, 0.25 + 0.75 * t))
             self._arc(gd, box, self._start, end, tw + int(6 * SS),
                       lambda t: self.c_main)
-            # rounded cap at the live end
-            ex = cx + r * math.cos(math.radians(end))
-            ey = cy + r * math.sin(math.radians(end))
-            cap = tw * 0.62
+            # rounded cap centered on the arc at the live end
+            ex = cx + rc * math.cos(math.radians(end))
+            ey = cy + rc * math.sin(math.radians(end))
+            cap = tw * 0.6
             d.ellipse([ex - cap, ey - cap, ex + cap, ey + cap], fill=self.c_bright + (255,))
             gd.ellipse([ex - cap * 1.4, ey - cap * 1.4, ex + cap * 1.4, ey + cap * 1.4],
                        fill=self.c_main + (255,))
@@ -211,6 +212,11 @@ class GlowSlider(tk.Canvas):
             return (int(rm * 255), int(gm * 255), int(bm * 255))
         if self.kind == "brightness":
             return lerp(mix(self.c_main, self.bg, 0.25), self.c_bright, t)
+        if self.kind == "vibrance":
+            # gray (desaturated) -> vivid saturated accent
+            gray = (120, 120, 126)
+            vivid = lerp(self.c_main, self.c_bright, t)
+            return lerp(gray, vivid, t)
         return lerp(mix(self.c_main, self.bg, 0.30), self.c_bright, t)
 
     def redraw(self):

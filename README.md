@@ -27,6 +27,14 @@ proper cross-platform utility:
 
 - **Three controls, not one.** Gamma (contrast/midtones), brightness (output
   scale) and color temperature (3000–10000K, like Night Light / f.lux).
+- **Digital vibrance.** VibranceGUI-style saturation control (0–100%, 50% =
+  neutral) for punchier colors — NVIDIA via NVAPI on Windows, `nvidia-settings`
+  on Linux.
+- **Resolution & refresh-rate switching.** Pick any mode with Default / Stretch
+  / Center scaling, with a confirm-or-auto-revert safety net.
+- **Per-app game profiles.** Add a process and Lumen auto-applies its vibrance
+  (and optionally a resolution) the moment the game launches, then restores your
+  desktop when it closes.
 - **Live preview.** A gradient bar shows the exact effect before it hits your
   eyes.
 - **Presets.** Night, Reading, Normal, Vivid, Gaming and Movie — one click each,
@@ -36,8 +44,9 @@ proper cross-platform utility:
 - **Day / night scheduler.** Automatically switch profiles at the times you set.
 - **Launch at startup.** A single toggle (and an installer checkbox) registers
   Lumen to start with your system — per-user, no admin/root needed.
-- **Polished UI.** Frameless window, sidebar navigation, smooth animated
-  transitions and five accent themes.
+- **Polished UI.** Frameless window, sidebar navigation, a glowing circular
+  gamma dial, gradient sliders, smooth animated transitions and five accent
+  themes.
 
 ## GPU & platform support
 
@@ -53,6 +62,11 @@ so it is GPU-agnostic — NVIDIA, AMD and Intel all work the same way.
 > Some laptop panels and a few drivers refuse hardware gamma ramps — that is a
 > driver limitation. On Windows, running as Administrator can help in those
 > cases.
+
+**Vibrance & resolution support:** Digital vibrance needs a vendor color API —
+NVIDIA (NVAPI) on Windows and `nvidia-settings` on Linux; AMD and macOS aren't
+covered yet and the control hides itself when unavailable. Resolution switching
+works on Windows and on Linux (via `xrandr`).
 
 ## Install
 

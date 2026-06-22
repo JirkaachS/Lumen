@@ -17,6 +17,7 @@ from .backends import get_backend
 from .config import (
     DEFAULT_PRESETS,
     Binding,
+    GameRule,
     Profile,
     load_settings,
     save_settings,
@@ -43,6 +44,9 @@ from .hotkeys import (
     mouse_available,
 )
 from .widgets import GlowSlider, GradientPanel, RadialDial
+from . import resolution as resmod
+from .automation import AppWatcher, normalize_name
+from .vibrance import get_vibrance_backend
 from . import theme as T
 
 try:
@@ -80,6 +84,15 @@ class LumenApp:
         self.cur_gamma = self.settings.gamma
         self.cur_brightness = self.settings.brightness
         self.cur_temp = self.settings.temperature
+
+        self.vibrance = get_vibrance_backend()
+        self.cur_vibrance = self.settings.vibrance
+        self._primary = next((m for m in self.monitors if m.primary), self.monitors[0])
+        self._res_revert_job = None
+        self._res_prev_mode = None
+        self._rule_saved_vibrance = None
+        self._rule_saved_mode = None
+        self._watcher = AppWatcher(self._on_app_start, self._on_app_stop)
 
         self._kb = KeyboardManager()
         self._mouse = MouseDispatcher()
@@ -127,7 +140,11 @@ class LumenApp:
             Profile("Startup", self.cur_gamma, self.cur_brightness, self.cur_temp),
             animate=False, save=False, announce=False,
         )
+        if self.vibrance.available():
+            self.vibrance.set_percent(self.cur_vibrance)
         self._start_scheduler()
+        self._refresh_watcher()
+        self._watcher.start()
 
         if start_hidden or self.settings.start_minimized:
             self.root.after(200, self.hide_to_tray)
@@ -156,13 +173,15 @@ class LumenApp:
         self.content.grid_rowconfigure(0, weight=1)
         self.content.grid_columnconfigure(0, weight=1)
 
-        for name in ("Control", "Hotkeys", "Schedule", "Settings"):
+        for name in ("Control", "Display", "Hotkeys", "Games", "Schedule", "Settings"):
             page = ctk.CTkFrame(self.content, fg_color="transparent")
             page.grid(row=0, column=0, sticky="nsew")
             self.pages[name] = page
 
         self._build_control(self.pages["Control"])
+        self._build_display(self.pages["Display"])
         self._build_hotkeys(self.pages["Hotkeys"])
+        self._build_games(self.pages["Games"])
         self._build_schedule(self.pages["Schedule"])
         self._build_settings(self.pages["Settings"])
 
@@ -197,11 +216,11 @@ class LumenApp:
 
         ctk.CTkFrame(bar, fg_color=T.BORDER, height=1).pack(fill="x", padx=16, pady=(12, 10))
 
-        nav = [("Control", "\u25D1"), ("Hotkeys", "\u2328"),
-               ("Schedule", "\u23F0"), ("Settings", "\u2699")]
+        nav = [("Control", "\u25D1"), ("Display", "\u25A3"), ("Hotkeys", "\u2328"),
+               ("Games", "\u25B6"), ("Schedule", "\u23F0"), ("Settings", "\u2699")]
         for name, icon in nav:
             btn = ctk.CTkButton(
-                bar, text=f"   {icon}   {name}", anchor="w", height=42,
+                bar, text=f"   {icon}   {name}", anchor="w", height=40,
                 fg_color="transparent", hover_color=T.SURF3,
                 text_color=T.MUTED, corner_radius=10, font=T.f(13),
                 command=lambda n=name: self._goto(n),
@@ -391,6 +410,320 @@ class LumenApp:
                 self._render_presets()
         except Exception:
             pass
+
+    # ════════════════════════════════════════════════════════════════════
+    # Display page (vibrance + resolution)
+    # ════════════════════════════════════════════════════════════════════
+    def _build_display(self, parent):
+        wrap = ctk.CTkScrollableFrame(parent, fg_color="transparent",
+                                      scrollbar_button_color=T.BORDER,
+                                      scrollbar_button_hover_color=T.BORDER2)
+        wrap.pack(fill="both", expand=True, padx=14, pady=(0, 4))
+
+        # ── Digital vibrance ─────────────────────────────────────────────
+        vib = ctk.CTkFrame(wrap, fg_color=T.SURF2, corner_radius=16)
+        vib.pack(fill="x", pady=(8, 12))
+        head = ctk.CTkFrame(vib, fg_color="transparent")
+        head.pack(fill="x", padx=16, pady=(14, 0))
+        ctk.CTkLabel(head, text="DIGITAL VIBRANCE", text_color=T.MUTED2,
+                     font=T.f(9)).pack(side="left")
+        self._vib_pill = ctk.CTkLabel(head, text=f"{self.cur_vibrance}%",
+                                      text_color=self.accent.main, fg_color=T.SURF3,
+                                      corner_radius=8, font=T.f(12, "bold"),
+                                      width=58, height=22)
+        self._vib_pill.pack(side="right")
+
+        if self.vibrance.available():
+            self._vib_slider = GlowSlider(
+                vib, width=360, height=42, lo=0, hi=100, value=self.cur_vibrance,
+                kind="vibrance", bg=T.SURF2, accent=self.accent.main,
+                accent_bright=self.accent.bright, on_change=self._on_vibrance)
+            self._vib_slider.pack(fill="x", padx=16, pady=(6, 4))
+            rng = ctk.CTkFrame(vib, fg_color="transparent")
+            rng.pack(fill="x", padx=18, pady=(0, 6))
+            ctk.CTkLabel(rng, text="0  grayscale", text_color=T.MUTED2,
+                         font=T.f(9)).pack(side="left")
+            ctk.CTkLabel(rng, text="50  neutral", text_color=T.MUTED2,
+                         font=T.f(9)).pack(side="left", expand=True)
+            ctk.CTkLabel(rng, text="100  max", text_color=T.MUTED2,
+                         font=T.f(9)).pack(side="right")
+            ctk.CTkLabel(vib, text=f"via {self.vibrance.name}", text_color=T.MUTED2,
+                         font=T.f(9), anchor="w").pack(anchor="w", padx=16, pady=(0, 14))
+        else:
+            ctk.CTkLabel(
+                vib, text="Digital vibrance isn't available on this GPU/driver.\n"
+                          "(Requires NVIDIA on Windows, or nvidia-settings on Linux.)",
+                text_color=T.MUTED, font=T.f(11), justify="left",
+            ).pack(anchor="w", padx=16, pady=(8, 16))
+
+        # ── Resolution ───────────────────────────────────────────────────
+        res = ctk.CTkFrame(wrap, fg_color=T.SURF2, corner_radius=16)
+        res.pack(fill="x", pady=(0, 12))
+        ctk.CTkLabel(res, text="RESOLUTION & REFRESH RATE", text_color=T.MUTED2,
+                     font=T.f(9), anchor="w").pack(anchor="w", padx=16, pady=(14, 2))
+        cur = resmod.current_mode(self._primary.id)
+        ctk.CTkLabel(res, text=f"Current: {cur.label if cur else 'unknown'}",
+                     text_color=T.MUTED, font=T.f(10), anchor="w").pack(anchor="w", padx=16, pady=(0, 8))
+
+        self._res_modes = resmod.list_modes(self._primary.id)
+        labels = [m.label for m in self._res_modes] or ["No modes found"]
+        self._res_combo = ctk.CTkOptionMenu(
+            res, values=labels, fg_color=T.SURF3, button_color=T.SURF3,
+            button_hover_color=T.BORDER2, text_color=T.TEXT, dropdown_fg_color=T.SURF3,
+            dropdown_hover_color=T.SURF2, dropdown_text_color=T.TEXT,
+            corner_radius=8, font=T.f(11), dynamic_resizing=False)
+        if cur:
+            match = next((m for m in self._res_modes if m.width == cur.width and
+                          m.height == cur.height and m.freq == cur.freq and m.scaling == cur.scaling), None)
+            if match:
+                self._res_combo.set(match.label)
+        self._res_combo.pack(fill="x", padx=16, pady=(0, 10))
+
+        btns = ctk.CTkFrame(res, fg_color="transparent")
+        btns.pack(fill="x", padx=16, pady=(0, 14))
+        ctk.CTkButton(btns, text="Apply", height=34, fg_color=self.accent.dim,
+                      hover_color=T.SURF3, text_color=self.accent.main, corner_radius=10,
+                      font=T.f(12, "bold"), command=self._apply_resolution).pack(
+                          side="left", fill="x", expand=True, padx=(0, 6))
+        ctk.CTkButton(btns, text="Restore", height=34, fg_color=T.SURF3,
+                      hover_color=T.BORDER2, text_color=T.MUTED, corner_radius=10,
+                      font=T.f(12), command=self._restore_resolution).pack(
+                          side="left", fill="x", expand=True, padx=(6, 0))
+        if not self._res_modes:
+            ctk.CTkLabel(res, text="Resolution switching isn't supported here yet.",
+                         text_color=T.MUTED, font=T.f(10)).pack(anchor="w", padx=16, pady=(0, 12))
+
+    def _on_vibrance(self, v):
+        self.cur_vibrance = int(round(v))
+        self._vib_pill.configure(text=f"{self.cur_vibrance}%")
+        if self.vibrance.available():
+            self.vibrance.set_percent(self.cur_vibrance)
+        self.settings.vibrance = self.cur_vibrance
+        save_settings(self.settings)
+
+    def _selected_res_mode(self):
+        label = self._res_combo.get()
+        return next((m for m in self._res_modes if m.label == label), None)
+
+    def _apply_resolution(self):
+        mode = self._selected_res_mode()
+        if not mode:
+            return
+        prev = resmod.current_mode(self._primary.id)
+        ok, msg = resmod.apply_mode(self._primary.id, mode)
+        if ok:
+            self._status(f"Applied {mode.label}")
+            self._confirm_resolution(prev)
+        else:
+            self._status(f"Resolution failed: {msg}", error=True)
+
+    def _restore_resolution(self):
+        if resmod.restore(self._primary.id):
+            self._status("Resolution restored")
+        else:
+            self._status("Couldn't restore resolution", warn=True)
+
+    def _confirm_resolution(self, prev_mode, seconds=12):
+        """Auto-revert dialog so a bad mode can't lock the user out."""
+        if self._res_revert_job:
+            try:
+                self.root.after_cancel(self._res_revert_job)
+            except Exception:
+                pass
+        top = ctk.CTkToplevel(self.root, fg_color=T.SURF)
+        top.title("Keep display mode?")
+        top.geometry("320x150")
+        top.attributes("-topmost", True)
+        top.resizable(False, False)
+        try:
+            top.grab_set()
+        except Exception:
+            pass
+        lbl = ctk.CTkLabel(top, text="", text_color=T.TEXT, font=T.f(12), justify="center")
+        lbl.pack(pady=(22, 14), padx=16)
+        row = ctk.CTkFrame(top, fg_color="transparent")
+        row.pack(pady=(0, 16))
+        state = {"left": seconds, "job": None}
+
+        def keep():
+            if state["job"]:
+                self.root.after_cancel(state["job"])
+            self._res_revert_job = None
+            top.destroy()
+            self._status("Display mode kept")
+
+        def revert():
+            if state["job"]:
+                self.root.after_cancel(state["job"])
+            self._res_revert_job = None
+            if prev_mode:
+                resmod.apply_mode(self._primary.id, prev_mode)
+            else:
+                resmod.restore(self._primary.id)
+            top.destroy()
+            self._status("Reverted display mode")
+
+        def tick():
+            lbl.configure(text=f"Keep this display mode?\nReverting in {state['left']}s")
+            if state["left"] <= 0:
+                revert()
+                return
+            state["left"] -= 1
+            state["job"] = self.root.after(1000, tick)
+
+        ctk.CTkButton(row, text="Keep", width=110, height=34, fg_color=self.accent.dim,
+                      hover_color=T.SURF3, text_color=self.accent.main, corner_radius=10,
+                      font=T.f(12, "bold"), command=keep).pack(side="left", padx=6)
+        ctk.CTkButton(row, text="Revert", width=110, height=34, fg_color=T.SURF3,
+                      hover_color=T.BORDER2, text_color=T.MUTED, corner_radius=10,
+                      font=T.f(12), command=revert).pack(side="left", padx=6)
+        tick()
+
+    # ════════════════════════════════════════════════════════════════════
+    # Games page (per-app automation)
+    # ════════════════════════════════════════════════════════════════════
+    def _build_games(self, parent):
+        wrap = ctk.CTkFrame(parent, fg_color="transparent")
+        wrap.pack(fill="both", expand=True, padx=18, pady=(0, 8))
+
+        card = ctk.CTkFrame(wrap, fg_color=T.SURF2, corner_radius=16)
+        card.pack(fill="x", pady=(8, 10))
+        ctk.CTkLabel(card, text="NEW GAME PROFILE", text_color=T.MUTED2,
+                     font=T.f(9), anchor="w").pack(anchor="w", padx=16, pady=(12, 8))
+        ctk.CTkLabel(card, text="Apply a vibrance level automatically while a program is running.",
+                     text_color=T.MUTED, font=T.f(10), anchor="w").pack(anchor="w", padx=16, pady=(0, 8))
+
+        row = ctk.CTkFrame(card, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(0, 6))
+        self._game_proc = ctk.CTkEntry(
+            row, height=34, placeholder_text="process e.g. game.exe", fg_color=T.SURF3,
+            text_color=T.TEXT, border_color=T.BORDER2, border_width=1, corner_radius=8,
+            font=T.f(12))
+        self._game_proc.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        ctk.CTkLabel(row, text="vibrance", text_color=T.MUTED, font=T.f(11)).pack(side="left", padx=(0, 6))
+        self._game_vib = ctk.CTkEntry(row, width=56, height=34, fg_color=T.SURF3,
+                                      text_color=T.TEXT, border_color=T.BORDER2, border_width=1,
+                                      corner_radius=8, justify="center", font=T.f(12))
+        self._game_vib.insert(0, "100")
+        self._game_vib.pack(side="left")
+        ctk.CTkLabel(row, text="%", text_color=T.MUTED, font=T.f(11)).pack(side="left", padx=(3, 0))
+
+        row2 = ctk.CTkFrame(card, fg_color="transparent")
+        row2.pack(fill="x", padx=16, pady=(0, 6))
+        self.v_game_res = tk.BooleanVar(value=False)
+        ctk.CTkSwitch(row2, text="Also switch resolution to", variable=self.v_game_res,
+                      progress_color=self.accent.main, button_color=T.WHITE,
+                      fg_color=T.SURF3, font=T.f(11), width=40).pack(side="left")
+        labels = [m.label for m in getattr(self, "_res_modes", resmod.list_modes(self._primary.id))] or ["—"]
+        if not hasattr(self, "_res_modes"):
+            self._res_modes = resmod.list_modes(self._primary.id)
+        self._game_res_combo = ctk.CTkOptionMenu(
+            row2, values=labels, fg_color=T.SURF3, button_color=T.SURF3,
+            button_hover_color=T.BORDER2, text_color=T.TEXT, dropdown_fg_color=T.SURF3,
+            dropdown_hover_color=T.SURF2, dropdown_text_color=T.TEXT, corner_radius=8,
+            font=T.f(10), dynamic_resizing=False, width=220)
+        self._game_res_combo.pack(side="left", padx=(10, 0))
+
+        ctk.CTkButton(card, text="+  Add profile", height=36, fg_color=T.SURF3,
+                      hover_color=T.BORDER2, text_color=self.accent.main, corner_radius=10,
+                      font=T.f(12, "bold"), command=self._add_game_rule).pack(
+                          fill="x", padx=16, pady=(2, 14))
+
+        ctk.CTkLabel(wrap, text="GAME PROFILES", text_color=T.MUTED2, font=T.f(9),
+                     anchor="w").pack(anchor="w", padx=6, pady=(6, 4))
+        self._game_list = ctk.CTkScrollableFrame(
+            wrap, fg_color="transparent", scrollbar_button_color=T.BORDER,
+            scrollbar_button_hover_color=T.BORDER2)
+        self._game_list.pack(fill="both", expand=True, pady=(0, 6))
+        self._render_game_rules()
+
+    def _add_game_rule(self):
+        proc = normalize_name(self._game_proc.get())
+        if not proc:
+            self._status("Enter a process name", warn=True)
+            return
+        try:
+            vib = max(0, min(100, int(self._game_vib.get())))
+        except ValueError:
+            self._status("Vibrance must be 0-100", error=True)
+            return
+        rule = GameRule(process=proc, vibrance=vib)
+        if self.v_game_res.get():
+            mode = next((m for m in self._res_modes if m.label == self._game_res_combo.get()), None)
+            if mode:
+                rule.change_resolution = True
+                rule.width, rule.height, rule.freq = mode.width, mode.height, mode.freq
+                rule.bpp, rule.scaling = mode.bpp, mode.scaling
+        # replace existing rule for same process
+        self.settings.game_rules = [r for r in self.settings.game_rules if r.process != proc]
+        self.settings.game_rules.append(rule)
+        save_settings(self.settings)
+        self._game_proc.delete(0, "end")
+        self._render_game_rules()
+        self._refresh_watcher()
+        self._status(f"Added profile for {proc}")
+
+    def _delete_game_rule(self, rule):
+        self.settings.game_rules = [r for r in self.settings.game_rules if r is not rule]
+        save_settings(self.settings)
+        self._render_game_rules()
+        self._refresh_watcher()
+        self._status(f"Removed {rule.process}")
+
+    def _render_game_rules(self):
+        for w in self._game_list.winfo_children():
+            w.destroy()
+        if not self.settings.game_rules:
+            ctk.CTkLabel(self._game_list, text="No game profiles yet.\nAdd one above.",
+                         text_color=T.MUTED2, font=T.f(12), justify="center").pack(pady=40)
+            return
+        for rule in self.settings.game_rules:
+            r = ctk.CTkFrame(self._game_list, fg_color=T.SURF2, corner_radius=10)
+            r.pack(fill="x", pady=3)
+            left = ctk.CTkFrame(r, fg_color="transparent")
+            left.pack(side="left", fill="x", expand=True, padx=14, pady=10)
+            ctk.CTkLabel(left, text=f"\u25B6  {rule.process}", text_color=T.TEXT,
+                         font=T.f(12, "bold"), anchor="w").pack(anchor="w")
+            detail = f"vibrance {rule.vibrance}%"
+            if rule.change_resolution and rule.width:
+                detail += f"  ·  {rule.width}x{rule.height}@{rule.freq}"
+            ctk.CTkLabel(left, text=detail, text_color=T.MUTED, font=T.f(10),
+                         anchor="w").pack(anchor="w")
+            ctk.CTkButton(r, text="\u2715", width=28, height=28, fg_color="transparent",
+                          hover_color=self.accent.danger_bg, text_color=T.DANGER,
+                          corner_radius=6, font=T.f(12),
+                          command=lambda x=rule: self._delete_game_rule(x)).pack(side="right", padx=10, pady=10)
+
+    def _refresh_watcher(self):
+        self._watcher.set_targets({r.process for r in self.settings.game_rules})
+
+    def _rule_for(self, proc):
+        return next((r for r in self.settings.game_rules if r.process == proc), None)
+
+    def _on_app_start(self, proc):
+        rule = self._rule_for(proc)
+        if not rule:
+            return
+        if self.vibrance.available():
+            self._rule_saved_vibrance = self.cur_vibrance
+            self.vibrance.set_percent(rule.vibrance)
+        if rule.change_resolution and rule.width:
+            self._rule_saved_mode = resmod.current_mode(self._primary.id)
+            resmod.apply_mode(self._primary.id, resmod.DisplayMode(
+                rule.width, rule.height, rule.freq, rule.bpp, rule.scaling))
+        self.root.after(0, lambda: self._status(f"{proc} detected \u2192 vibrance {rule.vibrance}%"))
+
+    def _on_app_stop(self, proc):
+        rule = self._rule_for(proc)
+        if not rule:
+            return
+        if self.vibrance.available() and self._rule_saved_vibrance is not None:
+            self.vibrance.set_percent(self._rule_saved_vibrance)
+            self._rule_saved_vibrance = None
+        if rule.change_resolution and self._rule_saved_mode:
+            resmod.apply_mode(self._primary.id, self._rule_saved_mode)
+            self._rule_saved_mode = None
+        self.root.after(0, lambda: self._status(f"{proc} closed \u2192 vibrance restored"))
 
     # ════════════════════════════════════════════════════════════════════
     # Hotkeys page
@@ -907,6 +1240,7 @@ class LumenApp:
         self.settings.smooth_transitions = self.v_smooth.get()
         self.settings.accent = self.accent.name
         self.settings.autostart = self.v_autostart.get()
+        self.settings.vibrance = self.cur_vibrance
         save_settings(self.settings)
 
     # ════════════════════════════════════════════════════════════════════
@@ -969,6 +1303,18 @@ class LumenApp:
         self._anim_token += 1
         self._kb.clear()
         self._mouse.clear_binds()
+        try:
+            self._watcher.stop()
+        except Exception:
+            pass
+        if self._res_revert_job:
+            try:
+                self.root.after_cancel(self._res_revert_job)
+            except Exception:
+                pass
+        # if a game rule was active, restore the saved desktop vibrance
+        if self.vibrance.available() and self._rule_saved_vibrance is not None:
+            self.vibrance.set_percent(self._rule_saved_vibrance)
         self._save()
         if self.v_restore.get():
             for m in self.monitors:

@@ -68,6 +68,20 @@ class Binding:
         return Profile("Hotkey", self.gamma, self.brightness, self.temperature).normalized()
 
 
+@dataclass
+class GameRule:
+    """Auto-apply a vibrance level (and optional resolution) while a process runs."""
+
+    process: str = ""
+    vibrance: int = 100
+    change_resolution: bool = False
+    width: int = 0
+    height: int = 0
+    freq: int = 0
+    bpp: int = 32
+    scaling: int = 0
+
+
 # Built-in presets (the "Game" preset preserves the original 2.50 behaviour).
 DEFAULT_PRESETS = [
     Profile("Night", 0.70, 0.85, 3600),
@@ -92,12 +106,14 @@ class Settings:
     smooth_transitions: bool = True
     accent: str = "amber"
     autostart: bool = False
+    vibrance: int = 50
     schedule_enabled: bool = False
     schedule_day: str = "Normal"
     schedule_night: str = "Night"
     schedule_day_time: str = "07:00"
     schedule_night_time: str = "20:00"
     bindings: list[Binding] = field(default_factory=list)
+    game_rules: list[GameRule] = field(default_factory=list)
 
     # ── persistence ──────────────────────────────────────────────────────
     def normalized(self) -> "Settings":
@@ -109,6 +125,7 @@ class Settings:
     def to_dict(self) -> dict:
         d = asdict(self)
         d["bindings"] = [asdict(b) for b in self.bindings]
+        d["game_rules"] = [asdict(g) for g in self.game_rules]
         return d
 
     @classmethod
@@ -131,6 +148,10 @@ class Settings:
         s.gamma = clamp_gamma(d.get("gamma", GAMMA_DEFAULT))
         s.brightness = clamp_brightness(d.get("brightness", BRIGHTNESS_DEFAULT))
         s.temperature = clamp_temperature(d.get("temperature", TEMP_DEFAULT))
+        try:
+            s.vibrance = max(0, min(100, int(d.get("vibrance", 50))))
+        except (TypeError, ValueError):
+            s.vibrance = 50
 
         bindings = []
         for item in d.get("bindings", []) or []:
@@ -146,6 +167,28 @@ class Settings:
                 temperature=clamp_temperature(item.get("temperature", TEMP_DEFAULT)),
             ))
         s.bindings = bindings
+
+        rules = []
+        for item in d.get("game_rules", []) or []:
+            if not isinstance(item, dict):
+                continue
+            proc = str(item.get("process", "")).strip()
+            if not proc:
+                continue
+            try:
+                rules.append(GameRule(
+                    process=proc,
+                    vibrance=max(0, min(100, int(item.get("vibrance", 100)))),
+                    change_resolution=bool(item.get("change_resolution", False)),
+                    width=int(item.get("width", 0)),
+                    height=int(item.get("height", 0)),
+                    freq=int(item.get("freq", 0)),
+                    bpp=int(item.get("bpp", 32)),
+                    scaling=int(item.get("scaling", 0)),
+                ))
+            except (TypeError, ValueError):
+                continue
+        s.game_rules = rules
         return s
 
 

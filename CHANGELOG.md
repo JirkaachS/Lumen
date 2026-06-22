@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.2
+
+### Added
+- **Digital vibrance** (VibranceGUI-style saturation control), 0–100% with 50%
+  neutral. NVIDIA via NVAPI on Windows and `nvidia-settings` on Linux.
+- **Resolution / refresh-rate / scaling switching** with Default / Stretch /
+  Center variants, a current-mode readout, and a 12-second confirm-or-auto-revert
+  safety dialog so a bad mode can never lock you out.
+- **Per-app automation ("Games")** — the standout improvement over VibranceGUI:
+  add a process (e.g. `game.exe`) with a vibrance level and optional resolution;
+  a background watcher applies it when the game launches and restores your
+  desktop state when it exits. No extra dependencies (Toolhelp32 / `ps`).
+- New **Display** and **Games** pages in the sidebar.
+
+### Fixed
+- Gamma dial handle is now centered on the arc (was drawn on the outer edge).
+
 ## 1.0.1
 
 ### Changed
