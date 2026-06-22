@@ -1,0 +1,8 @@
+# Core (all platforms)
+customtkinter>=5.2.0
+pillow>=9.0.0
+pystray>=0.19.0
+
+# Global hotkeys — Windows & Linux only (skipped automatically on macOS).
+keyboard>=0.13.5 ; sys_platform != "darwin"
+mouse>=0.7.1 ; sys_platform != "darwin"

@@ -1,0 +1,29 @@
+# Changelog
+
+## 1.0.0
+
+Complete ground-up rework of the original Windows-only "Gamma Control",
+relaunched as **Lumen**.
+
+### Added
+- Cross-platform engine with pluggable backends: Windows (GDI), macOS
+  (CoreGraphics), Linux (X11 XRandR + `xrandr` fallback). GPU-agnostic.
+- Brightness and color-temperature controls alongside gamma.
+- Live gradient preview of the current settings.
+- Six presets (Night, Reading, Normal, Vivid, Gaming, Movie).
+- Day/night scheduler.
+- Launch-at-startup toggle in-app and an installer checkbox (per-user
+  autostart on all three platforms).
+- Smooth animated transitions and five accent themes.
+- New generated icon set (ico / png / iconset).
+- Windows installer (Inno Setup), Linux installer script + `.desktop`, macOS
+  app/DMG build script.
+- GitHub Actions workflow that builds and releases all three platforms on tag.
+
+### Preserved from the original
+- Slider-based gamma control and instant apply.
+- Keyboard and mouse-button global hotkeys with toggle behaviour.
+- Per-monitor selection, apply-to-all, restore-on-exit, keep-on-top,
+  start-minimized.
+- System tray with quick presets.
+- The original "Game" gamma 2.50 behaviour lives on as the **Gaming** preset.

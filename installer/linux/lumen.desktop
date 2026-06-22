@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen
+GenericName=Display Color Control
+Comment=Adjust display gamma, brightness and color temperature
+Exec=lumen
+Icon=lumen
+Terminal=false
+Categories=Utility;Settings;
+Keywords=gamma;brightness;color;temperature;nightlight;monitor;
+StartupNotify=false

@@ -1,0 +1,97 @@
+name: Build installers
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Windows: exe + Inno Setup installer ────────────────────────────────
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build exe
+        run: python scripts/build.py
+      - name: Build installer (Inno Setup)
+        run: |
+          choco install innosetup --no-progress -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\windows\lumen.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumen-windows
+          path: |
+            dist/Lumen.exe
+            installer/windows/Output/*.exe
+
+  # ── macOS: .app + DMG ──────────────────────────────────────────────────
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build app + dmg
+        run: bash installer/macos/build_app.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumen-macos
+          path: |
+            dist/*.dmg
+            dist/Lumen.app
+
+  # ── Linux: one-folder build + installer payload ────────────────────────
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System deps
+        run: sudo apt-get update && sudo apt-get install -y python3-tk libx11-6 libxrandr2
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build
+        run: python scripts/build.py
+      - name: Package tarball
+        run: |
+          mkdir -p out
+          tar -czf out/lumen-linux.tar.gz -C dist Lumen installer/linux/install.sh installer/linux/lumen.desktop 2>/dev/null || \
+          tar -czf out/lumen-linux.tar.gz dist installer/linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumen-linux
+          path: out/*.tar.gz
+
+  # ── Attach everything to the GitHub Release ────────────────────────────
+  release:
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lumen-display"
+version = "1.0.0"
+description = "Cross-platform display gamma, brightness and color-temperature control."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "JirkaachS" }]
+keywords = ["gamma", "brightness", "color-temperature", "display", "monitor", "nightlight"]
+classifiers = [
+    "Environment :: X11 Applications",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics",
+]
+dependencies = [
+    "customtkinter>=5.2.0",
+    "pillow>=9.0.0",
+    "pystray>=0.19.0",
+]
+
+[project.optional-dependencies]
+# Global hotkeys (Windows/Linux). Not used on macOS.
+hotkeys = ["keyboard>=0.13.5", "mouse>=0.7.1"]
+build = ["pyinstaller>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/JirkaachS/Lumen"
+Issues = "https://github.com/JirkaachS/Lumen/issues"
+
+[project.gui-scripts]
+lumen = "lumen.__main__:main"
+
+[tool.setuptools]
+packages = ["lumen", "lumen.backends"]
+
+[tool.setuptools.package-data]
+lumen = ["assets/*.png", "assets/*.ico"]
