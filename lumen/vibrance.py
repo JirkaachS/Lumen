@@ -21,7 +21,7 @@ import subprocess
 import sys
 from ctypes import POINTER, byref, c_int, c_uint, c_void_p
 
-NEUTRAL_PERCENT = 50
+NEUTRAL_PERCENT = 100  # UI scale is 0..200%, 100% = neutral, 200% = GPU max
 
 
 class VibranceBackend:
@@ -115,12 +115,12 @@ class NvidiaVibrance(VibranceBackend):
         return self._ok
 
     def _to_level(self, percent: int) -> int:
-        percent = max(0, min(100, int(percent)))
-        return int(round(self._min + (percent / 100.0) * (self._max - self._min)))
+        percent = max(0, min(200, int(percent)))
+        return int(round(self._min + (percent / 200.0) * (self._max - self._min)))
 
     def _to_percent(self, level: int) -> int:
         span = max(1, self._max - self._min)
-        return int(round((level - self._min) / span * 100))
+        return int(round((level - self._min) / span * 200))
 
     def get_percent(self) -> int:
         if not self._ok:
@@ -155,9 +155,9 @@ class LinuxNvidiaVibrance(VibranceBackend):
         return bool(shutil.which("nvidia-settings"))
 
     def set_percent(self, percent: int) -> bool:
-        percent = max(0, min(100, int(percent)))
-        # 50% -> 0 (neutral); >50 boosts, <50 desaturates
-        value = int(round((percent - 50) / 50.0 * self._MAX))
+        percent = max(0, min(200, int(percent)))
+        # 100% -> 0 (neutral); 200% -> +MAX; 0% -> -MAX
+        value = int(round((percent - 100) / 100.0 * self._MAX))
         try:
             subprocess.run(
                 ["nvidia-settings", "-a", f"[gpu:0]/DigitalVibrance={value}"],

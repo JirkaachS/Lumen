@@ -73,7 +73,7 @@ class GameRule:
     """Auto-apply a vibrance level (and optional resolution) while a process runs."""
 
     process: str = ""
-    vibrance: int = 100
+    vibrance: int = 150
     change_resolution: bool = False
     width: int = 0
     height: int = 0
@@ -106,7 +106,7 @@ class Settings:
     smooth_transitions: bool = True
     accent: str = "amber"
     autostart: bool = False
-    vibrance: int = 50
+    vibrance: int = 100
     schedule_enabled: bool = False
     schedule_day: str = "Normal"
     schedule_night: str = "Night"
@@ -149,9 +149,9 @@ class Settings:
         s.brightness = clamp_brightness(d.get("brightness", BRIGHTNESS_DEFAULT))
         s.temperature = clamp_temperature(d.get("temperature", TEMP_DEFAULT))
         try:
-            s.vibrance = max(0, min(100, int(d.get("vibrance", 50))))
+            s.vibrance = max(0, min(200, int(d.get("vibrance", 100))))
         except (TypeError, ValueError):
-            s.vibrance = 50
+            s.vibrance = 100
 
         bindings = []
         for item in d.get("bindings", []) or []:
@@ -178,7 +178,7 @@ class Settings:
             try:
                 rules.append(GameRule(
                     process=proc,
-                    vibrance=max(0, min(100, int(item.get("vibrance", 100)))),
+                    vibrance=max(0, min(200, int(item.get("vibrance", 150)))),
                     change_resolution=bool(item.get("change_resolution", False)),
                     width=int(item.get("width", 0)),
                     height=int(item.get("height", 0)),

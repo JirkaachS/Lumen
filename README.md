@@ -27,14 +27,14 @@ proper cross-platform utility:
 
 - **Three controls, not one.** Gamma (contrast/midtones), brightness (output
   scale) and color temperature (3000–10000K, like Night Light / f.lux).
-- **Digital vibrance.** VibranceGUI-style saturation control (0–100%, 50% =
-  neutral) for punchier colors — NVIDIA via NVAPI on Windows, `nvidia-settings`
-  on Linux.
-- **Resolution & refresh-rate switching.** Pick any mode with Default / Stretch
-  / Center scaling, with a confirm-or-auto-revert safety net.
-- **Per-app game profiles.** Add a process and Lumen auto-applies its vibrance
-  (and optionally a resolution) the moment the game launches, then restores your
-  desktop when it closes.
+- **Digital vibrance.** VibranceGUI-style saturation control (0–200%, 100% =
+  neutral, 200% = max GPU boost) for punchier colors — NVIDIA via NVAPI on
+  Windows, `nvidia-settings` on Linux.
+- **Resolution & refresh-rate switching.** Searchable picker for any mode, with
+  separate Default / Stretch / Center scaling and a confirm-or-auto-revert net.
+- **Per-app game profiles.** Add a process (with a built-in process explorer to
+  pick from running apps) and Lumen auto-applies its vibrance and optional
+  resolution when the game launches, then restores your desktop when it closes.
 - **Live preview.** A gradient bar shows the exact effect before it hits your
   eyes.
 - **Presets.** Night, Reading, Normal, Vivid, Gaming and Movie — one click each,
@@ -124,9 +124,6 @@ python scripts/build.py        # → dist/
 # Windows installer (needs Inno Setup)
 iscc installer/windows/lumen.iss
 ```
-
-Tagging a commit `vX.Y.Z` and pushing triggers the GitHub Actions workflow,
-which builds Windows / macOS / Linux artifacts and attaches them to a Release.
 
 ## License
 

@@ -45,7 +45,7 @@ from .hotkeys import (
 )
 from .widgets import GlowSlider, GradientPanel, RadialDial
 from . import resolution as resmod
-from .automation import AppWatcher, normalize_name
+from .automation import AppWatcher, list_window_apps, normalize_name
 from .vibrance import get_vibrance_backend
 from . import theme as T
 
@@ -435,7 +435,7 @@ class LumenApp:
 
         if self.vibrance.available():
             self._vib_slider = GlowSlider(
-                vib, width=360, height=42, lo=0, hi=100, value=self.cur_vibrance,
+                vib, width=360, height=42, lo=0, hi=200, value=self.cur_vibrance,
                 kind="vibrance", bg=T.SURF2, accent=self.accent.main,
                 accent_bright=self.accent.bright, on_change=self._on_vibrance)
             self._vib_slider.pack(fill="x", padx=16, pady=(6, 4))
@@ -443,9 +443,9 @@ class LumenApp:
             rng.pack(fill="x", padx=18, pady=(0, 6))
             ctk.CTkLabel(rng, text="0  grayscale", text_color=T.MUTED2,
                          font=T.f(9)).pack(side="left")
-            ctk.CTkLabel(rng, text="50  neutral", text_color=T.MUTED2,
+            ctk.CTkLabel(rng, text="100  neutral", text_color=T.MUTED2,
                          font=T.f(9)).pack(side="left", expand=True)
-            ctk.CTkLabel(rng, text="100  max", text_color=T.MUTED2,
+            ctk.CTkLabel(rng, text="200  max", text_color=T.MUTED2,
                          font=T.f(9)).pack(side="right")
             ctk.CTkLabel(vib, text=f"via {self.vibrance.name}", text_color=T.MUTED2,
                          font=T.f(9), anchor="w").pack(anchor="w", padx=16, pady=(0, 14))
@@ -462,22 +462,37 @@ class LumenApp:
         ctk.CTkLabel(res, text="RESOLUTION & REFRESH RATE", text_color=T.MUTED2,
                      font=T.f(9), anchor="w").pack(anchor="w", padx=16, pady=(14, 2))
         cur = resmod.current_mode(self._primary.id)
-        ctk.CTkLabel(res, text=f"Current: {cur.label if cur else 'unknown'}",
-                     text_color=T.MUTED, font=T.f(10), anchor="w").pack(anchor="w", padx=16, pady=(0, 8))
+        self._res_cur_lbl = ctk.CTkLabel(
+            res, text=f"Current: {cur.label if cur else 'unknown'}",
+            text_color=T.MUTED, font=T.f(10), anchor="w")
+        self._res_cur_lbl.pack(anchor="w", padx=16, pady=(0, 8))
 
         self._res_modes = resmod.list_modes(self._primary.id)
-        labels = [m.label for m in self._res_modes] or ["No modes found"]
-        self._res_combo = ctk.CTkOptionMenu(
-            res, values=labels, fg_color=T.SURF3, button_color=T.SURF3,
-            button_hover_color=T.BORDER2, text_color=T.TEXT, dropdown_fg_color=T.SURF3,
-            dropdown_hover_color=T.SURF2, dropdown_text_color=T.TEXT,
-            corner_radius=8, font=T.f(11), dynamic_resizing=False)
+        self._res_unique = self._unique_modes(self._res_modes)
+        self._sel_res = None
         if cur:
-            match = next((m for m in self._res_modes if m.width == cur.width and
-                          m.height == cur.height and m.freq == cur.freq and m.scaling == cur.scaling), None)
-            if match:
-                self._res_combo.set(match.label)
-        self._res_combo.pack(fill="x", padx=16, pady=(0, 10))
+            self._sel_res = next((m for m in self._res_unique if m.width == cur.width and
+                                  m.height == cur.height and m.freq == cur.freq), None)
+        if self._sel_res is None and self._res_unique:
+            self._sel_res = self._res_unique[0]
+
+        self._res_btn = ctk.CTkButton(
+            res, text=self._short_res(self._sel_res), height=36, anchor="w",
+            fg_color=T.SURF3, hover_color=T.BORDER2, text_color=T.TEXT,
+            corner_radius=8, font=T.f(12),
+            command=lambda: self._pick_resolution(self._set_display_res))
+        self._res_btn.pack(fill="x", padx=16, pady=(0, 8))
+
+        # scaling
+        scl = ctk.CTkFrame(res, fg_color="transparent")
+        scl.pack(fill="x", padx=16, pady=(0, 10))
+        ctk.CTkLabel(scl, text="Scaling", text_color=T.MUTED, font=T.f(11)).pack(side="left", padx=(0, 10))
+        self.v_scaling = ctk.StringVar(value=resmod.SCALING_NAMES.get(cur.scaling if cur else 0, "Default"))
+        ctk.CTkSegmentedButton(
+            scl, values=["Default", "Stretch", "Center"], variable=self.v_scaling,
+            selected_color=self.accent.dim, selected_hover_color=T.SURF3,
+            unselected_color=T.SURF3, unselected_hover_color=T.SURF2,
+            text_color=T.TEXT, corner_radius=8, font=T.f(11)).pack(side="left", fill="x", expand=True)
 
         btns = ctk.CTkFrame(res, fg_color="transparent")
         btns.pack(fill="x", padx=16, pady=(0, 14))
@@ -493,6 +508,32 @@ class LumenApp:
             ctk.CTkLabel(res, text="Resolution switching isn't supported here yet.",
                          text_color=T.MUTED, font=T.f(10)).pack(anchor="w", padx=16, pady=(0, 12))
 
+    # ── resolution helpers ───────────────────────────────────────────────
+    @staticmethod
+    def _unique_modes(modes):
+        seen = {}
+        for m in modes:
+            seen.setdefault((m.width, m.height, m.freq, m.bpp), m)
+        return list(seen.values())
+
+    @staticmethod
+    def _short_res(mode):
+        if not mode:
+            return "No modes found"
+        return f"{mode.width} x {mode.height} @ {mode.freq} hz"
+
+    def _scaling_value(self):
+        return {"Default": 0, "Stretch": 1, "Center": 2}.get(self.v_scaling.get(), 0)
+
+    def _set_display_res(self, mode):
+        self._sel_res = mode
+        self._res_btn.configure(text=self._short_res(mode))
+
+    def _pick_resolution(self, on_select):
+        items = [(self._short_res(m), m) for m in self._res_unique]
+        self._open_picker("Select resolution", items, on_select,
+                          current=self._short_res(self._sel_res))
+
     def _on_vibrance(self, v):
         self.cur_vibrance = int(round(v))
         self._vib_pill.configure(text=f"{self.cur_vibrance}%")
@@ -501,14 +542,12 @@ class LumenApp:
         self.settings.vibrance = self.cur_vibrance
         save_settings(self.settings)
 
-    def _selected_res_mode(self):
-        label = self._res_combo.get()
-        return next((m for m in self._res_modes if m.label == label), None)
-
     def _apply_resolution(self):
-        mode = self._selected_res_mode()
+        mode = self._sel_res
         if not mode:
             return
+        from .resolution import DisplayMode
+        mode = DisplayMode(mode.width, mode.height, mode.freq, mode.bpp, self._scaling_value())
         prev = resmod.current_mode(self._primary.id)
         ok, msg = resmod.apply_mode(self._primary.id, mode)
         if ok:
@@ -579,6 +618,127 @@ class LumenApp:
                       font=T.f(12), command=revert).pack(side="left", padx=6)
         tick()
 
+    def _open_picker(self, title, items, on_select, current=None):
+        """Searchable, scrollable selection popup. items = [(text, value), ...]."""
+        top = ctk.CTkToplevel(self.root, fg_color=T.SURF)
+        top.title(title)
+        top.geometry("400x460")
+        top.attributes("-topmost", True)
+        try:
+            self.root.update_idletasks()
+            x = self.root.winfo_rootx() + (self.root.winfo_width() - 400) // 2
+            y = self.root.winfo_rooty() + 60
+            top.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        try:
+            top.grab_set()
+        except Exception:
+            pass
+
+        search_var = tk.StringVar()
+        entry = ctk.CTkEntry(top, textvariable=search_var, placeholder_text="Search…",
+                             fg_color=T.SURF3, text_color=T.TEXT, border_color=T.BORDER2,
+                             border_width=1, corner_radius=8, font=T.f(12))
+        entry.pack(fill="x", padx=14, pady=(14, 8))
+        listing = ctk.CTkScrollableFrame(top, fg_color="transparent",
+                                         scrollbar_button_color=T.BORDER,
+                                         scrollbar_button_hover_color=T.BORDER2)
+        listing.pack(fill="both", expand=True, padx=10, pady=(0, 12))
+
+        def choose(value):
+            try:
+                top.destroy()
+            except Exception:
+                pass
+            on_select(value)
+
+        def render(*_):
+            for w in listing.winfo_children():
+                w.destroy()
+            q = search_var.get().strip().lower()
+            for text, value in items:
+                if q and q not in text.lower():
+                    continue
+                active = current is not None and text == current
+                ctk.CTkButton(
+                    listing, text=text, anchor="w", height=34,
+                    fg_color=self.accent.dim if active else T.SURF2,
+                    hover_color=T.SURF3,
+                    text_color=self.accent.main if active else T.TEXT,
+                    corner_radius=8, font=T.f(12),
+                    command=lambda v=value: choose(v)).pack(fill="x", pady=2, padx=2)
+
+        search_var.trace_add("write", render)
+        render()
+        entry.focus_set()
+
+    def _open_process_explorer(self):
+        """List running apps (those with a visible window) to pick from."""
+        top = ctk.CTkToplevel(self.root, fg_color=T.SURF)
+        top.title("Process Explorer")
+        top.geometry("460x480")
+        top.attributes("-topmost", True)
+        try:
+            x = self.root.winfo_rootx() + (self.root.winfo_width() - 460) // 2
+            y = self.root.winfo_rooty() + 50
+            top.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        try:
+            top.grab_set()
+        except Exception:
+            pass
+
+        bar = ctk.CTkFrame(top, fg_color="transparent")
+        bar.pack(fill="x", padx=14, pady=(14, 6))
+        ctk.CTkLabel(bar, text="Running apps", text_color=T.TEXT,
+                     font=T.f(13, "bold")).pack(side="left")
+        listing = ctk.CTkScrollableFrame(top, fg_color="transparent",
+                                         scrollbar_button_color=T.BORDER,
+                                         scrollbar_button_hover_color=T.BORDER2)
+        listing.pack(fill="both", expand=True, padx=10, pady=(0, 12))
+
+        def pick(name):
+            self._game_proc.delete(0, "end")
+            self._game_proc.insert(0, name)
+            try:
+                top.destroy()
+            except Exception:
+                pass
+
+        def reload():
+            for w in listing.winfo_children():
+                w.destroy()
+            apps = list_window_apps()
+            if not apps:
+                ctk.CTkLabel(listing, text="No apps found.", text_color=T.MUTED2,
+                             font=T.f(12)).pack(pady=30)
+                return
+            for app in apps:
+                row = ctk.CTkButton(
+                    listing, text="", height=46, fg_color=T.SURF2, hover_color=T.SURF3,
+                    corner_radius=10, command=lambda n=app["name"]: pick(n))
+                row.pack(fill="x", pady=3, padx=2)
+                inner = ctk.CTkFrame(row, fg_color="transparent")
+                inner.place(relx=0.0, rely=0.5, anchor="w", x=12)
+                letter = (app["name"][:1] or "?").upper()
+                ctk.CTkLabel(inner, text=letter, width=30, height=30,
+                             fg_color=self.accent.dim, text_color=self.accent.main,
+                             corner_radius=8, font=T.f(13, "bold")).pack(side="left", padx=(0, 10))
+                txt = ctk.CTkFrame(inner, fg_color="transparent")
+                txt.pack(side="left")
+                ctk.CTkLabel(txt, text=app["name"], text_color=T.TEXT,
+                             font=T.f(12, "bold"), anchor="w").pack(anchor="w")
+                sub = app["path"] or app.get("title", "")
+                ctk.CTkLabel(txt, text=sub[:48], text_color=T.MUTED,
+                             font=T.f(9), anchor="w").pack(anchor="w")
+
+        ctk.CTkButton(bar, text="\u21BB  Reload", width=90, height=30, fg_color=T.SURF3,
+                      hover_color=T.BORDER2, text_color=T.MUTED, corner_radius=8,
+                      font=T.f(11), command=reload).pack(side="right")
+        reload()
+
     # ════════════════════════════════════════════════════════════════════
     # Games page (per-app automation)
     # ════════════════════════════════════════════════════════════════════
@@ -599,14 +759,26 @@ class LumenApp:
             row, height=34, placeholder_text="process e.g. game.exe", fg_color=T.SURF3,
             text_color=T.TEXT, border_color=T.BORDER2, border_width=1, corner_radius=8,
             font=T.f(12))
-        self._game_proc.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        ctk.CTkLabel(row, text="vibrance", text_color=T.MUTED, font=T.f(11)).pack(side="left", padx=(0, 6))
-        self._game_vib = ctk.CTkEntry(row, width=56, height=34, fg_color=T.SURF3,
+        self._game_proc.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkButton(row, text="\U0001F50D  Browse", width=96, height=34, fg_color=T.SURF3,
+                      hover_color=T.BORDER2, text_color=self.accent.main, corner_radius=8,
+                      font=T.f(11), command=self._open_process_explorer).pack(side="left")
+
+        rowv = ctk.CTkFrame(card, fg_color="transparent")
+        rowv.pack(fill="x", padx=16, pady=(0, 6))
+        ctk.CTkLabel(rowv, text="Vibrance", text_color=T.MUTED, font=T.f(11)).pack(side="left", padx=(0, 8))
+        self._game_vib = ctk.CTkEntry(rowv, width=60, height=34, fg_color=T.SURF3,
                                       text_color=T.TEXT, border_color=T.BORDER2, border_width=1,
                                       corner_radius=8, justify="center", font=T.f(12))
-        self._game_vib.insert(0, "100")
+        self._game_vib.insert(0, "150")
         self._game_vib.pack(side="left")
-        ctk.CTkLabel(row, text="%", text_color=T.MUTED, font=T.f(11)).pack(side="left", padx=(3, 0))
+        ctk.CTkLabel(rowv, text="%  (0-200, 100 = neutral)", text_color=T.MUTED2,
+                     font=T.f(10)).pack(side="left", padx=(6, 0))
+
+        if not hasattr(self, "_res_unique"):
+            self._res_modes = resmod.list_modes(self._primary.id)
+            self._res_unique = self._unique_modes(self._res_modes)
+        self._game_res_sel = self._res_unique[0] if self._res_unique else None
 
         row2 = ctk.CTkFrame(card, fg_color="transparent")
         row2.pack(fill="x", padx=16, pady=(0, 6))
@@ -614,15 +786,12 @@ class LumenApp:
         ctk.CTkSwitch(row2, text="Also switch resolution to", variable=self.v_game_res,
                       progress_color=self.accent.main, button_color=T.WHITE,
                       fg_color=T.SURF3, font=T.f(11), width=40).pack(side="left")
-        labels = [m.label for m in getattr(self, "_res_modes", resmod.list_modes(self._primary.id))] or ["—"]
-        if not hasattr(self, "_res_modes"):
-            self._res_modes = resmod.list_modes(self._primary.id)
-        self._game_res_combo = ctk.CTkOptionMenu(
-            row2, values=labels, fg_color=T.SURF3, button_color=T.SURF3,
-            button_hover_color=T.BORDER2, text_color=T.TEXT, dropdown_fg_color=T.SURF3,
-            dropdown_hover_color=T.SURF2, dropdown_text_color=T.TEXT, corner_radius=8,
-            font=T.f(10), dynamic_resizing=False, width=220)
-        self._game_res_combo.pack(side="left", padx=(10, 0))
+        self._game_res_btn = ctk.CTkButton(
+            row2, text=self._short_res(self._game_res_sel), height=32, anchor="w",
+            fg_color=T.SURF3, hover_color=T.BORDER2, text_color=T.TEXT, corner_radius=8,
+            font=T.f(11), width=200,
+            command=lambda: self._pick_resolution(self._set_game_res))
+        self._game_res_btn.pack(side="left", padx=(10, 0))
 
         ctk.CTkButton(card, text="+  Add profile", height=36, fg_color=T.SURF3,
                       hover_color=T.BORDER2, text_color=self.accent.main, corner_radius=10,
@@ -637,23 +806,26 @@ class LumenApp:
         self._game_list.pack(fill="both", expand=True, pady=(0, 6))
         self._render_game_rules()
 
+    def _set_game_res(self, mode):
+        self._game_res_sel = mode
+        self._game_res_btn.configure(text=self._short_res(mode))
+
     def _add_game_rule(self):
         proc = normalize_name(self._game_proc.get())
         if not proc:
             self._status("Enter a process name", warn=True)
             return
         try:
-            vib = max(0, min(100, int(self._game_vib.get())))
+            vib = max(0, min(200, int(self._game_vib.get())))
         except ValueError:
-            self._status("Vibrance must be 0-100", error=True)
+            self._status("Vibrance must be 0-200", error=True)
             return
         rule = GameRule(process=proc, vibrance=vib)
-        if self.v_game_res.get():
-            mode = next((m for m in self._res_modes if m.label == self._game_res_combo.get()), None)
-            if mode:
-                rule.change_resolution = True
-                rule.width, rule.height, rule.freq = mode.width, mode.height, mode.freq
-                rule.bpp, rule.scaling = mode.bpp, mode.scaling
+        if self.v_game_res.get() and self._game_res_sel:
+            mode = self._game_res_sel
+            rule.change_resolution = True
+            rule.width, rule.height, rule.freq = mode.width, mode.height, mode.freq
+            rule.bpp, rule.scaling = mode.bpp, mode.scaling
         # replace existing rule for same process
         self.settings.game_rules = [r for r in self.settings.game_rules if r.process != proc]
         self.settings.game_rules.append(rule)

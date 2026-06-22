@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.3
+
+### Added
+- **Process explorer** on the Games page — browse running apps (those with a
+  visible window) and pick one instead of typing the executable name.
+
+### Changed
+- **Max digital vibrance raised to 200%** (100% = neutral, 200% = GPU max).
+- **Resolution picker is now searchable and scrollable** via a popup, and the
+  list is far shorter: scaling (Default / Stretch / Center) moved to its own
+  control so modes aren't tripled (441 → 147 entries here).
+
 ## 1.0.2
 
 ### Added

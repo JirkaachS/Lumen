@@ -77,6 +77,86 @@ def normalize_name(name: str) -> str:
     return name
 
 
+def list_window_apps() -> list[dict]:
+    """Return user-facing apps (those with a visible top-level window) as
+    [{name, path, title}], deduped by executable. Falls back to the full
+    process list when window enumeration isn't available."""
+    if sys.platform.startswith("win"):
+        try:
+            apps = _win_window_apps()
+            if apps:
+                return apps
+        except Exception:
+            pass
+    # generic fallback: process names with best-effort paths
+    return [{"name": n, "path": "", "title": ""} for n in sorted(running_processes())]
+
+
+def _win_window_apps() -> list[dict]:
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    GWL_EXSTYLE = -20
+    WS_EX_TOOLWINDOW = 0x00000080
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+
+    found: dict[int, dict] = {}
+
+    def query_path(pid):
+        h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(1024)
+            size = wintypes.DWORD(1024)
+            if kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+                return buf.value
+        finally:
+            kernel32.CloseHandle(h)
+        return ""
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+
+    def cb(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        if ex & WS_EX_TOOLWINDOW:
+            return True
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return True
+        title = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, title, length + 1)
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        pid = pid.value
+        if pid and pid not in found:
+            path = query_path(pid)
+            name = path.split("\\")[-1] if path else ""
+            if name:
+                found[pid] = {"name": name, "path": path, "title": title.value}
+        return True
+
+    user32.EnumWindows(WNDENUMPROC(cb), 0)
+
+    # dedup by executable name, keep first title/path
+    by_name: dict[str, dict] = {}
+    for info in found.values():
+        key = info["name"].lower()
+        if key not in by_name:
+            by_name[key] = info
+    return sorted(by_name.values(), key=lambda d: d["name"].lower())
+
+
 class AppWatcher:
     """Polls processes and fires on_start/on_stop for watched executable names."""
 
