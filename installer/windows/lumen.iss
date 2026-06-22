@@ -14,7 +14,7 @@
 #define AppExe "Lumen.exe"
 
 [Setup]
-AppId={{8F3C1A52-9D44-4E0B-9A1E-LUMEN0000001}
+AppId={{8F3C1A52-9D44-4E0B-9A1E-A1B2C3D4E5F6}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}

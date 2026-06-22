@@ -73,9 +73,12 @@ jobs:
         run: python scripts/build.py
       - name: Package tarball
         run: |
-          mkdir -p out
-          tar -czf out/lumen-linux.tar.gz -C dist Lumen installer/linux/install.sh installer/linux/lumen.desktop 2>/dev/null || \
-          tar -czf out/lumen-linux.tar.gz dist installer/linux
+          mkdir -p out/lumen/dist out/lumen/lumen
+          cp -r dist/Lumen out/lumen/dist/
+          cp -r installer out/lumen/installer
+          cp -r lumen/assets out/lumen/lumen/assets
+          cp README.md LICENSE out/lumen/
+          tar -czf out/lumen-linux-x86_64.tar.gz -C out lumen
       - uses: actions/upload-artifact@v4
         with:
           name: lumen-linux

@@ -22,7 +22,7 @@ ASSETS = ROOT / "lumen" / "assets"
 
 
 def run(cmd: list[str]):
-    print("→", " ".join(cmd))
+    print(">", " ".join(cmd))
     subprocess.run(cmd, check=True, cwd=ROOT)
 
 
@@ -55,8 +55,13 @@ def main():
 
     cmd += [str(ROOT / "scripts" / "_entry.py")]
 
+    # Generate the PyInstaller entry shim (gitignored, created at build time).
+    (ROOT / "scripts" / "_entry.py").write_text(
+        "from lumen.__main__ import main\nmain()\n", encoding="utf-8"
+    )
+
     run(cmd)
-    print("\nBuild complete →", ROOT / "dist")
+    print("\nBuild complete ->", ROOT / "dist")
 
 
 if __name__ == "__main__":
