@@ -48,12 +48,15 @@ jobs:
           pip install -r requirements.txt pyinstaller
       - name: Build app + dmg
         run: bash installer/macos/build_app.sh
+      - name: Zip app bundle
+        run: |
+          cd dist && zip -r -q Lumen-macos.app.zip Lumen.app && cd ..
       - uses: actions/upload-artifact@v4
         with:
           name: lumen-macos
           path: |
             dist/*.dmg
-            dist/Lumen.app
+            dist/Lumen-macos.app.zip
 
   # ── Linux: one-folder build + installer payload ────────────────────────
   linux:
