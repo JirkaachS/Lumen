@@ -71,13 +71,13 @@ works on Windows and on Linux (via `xrandr`).
 ## Install
 
 ### Windows
-1. Grab `LumenSetup-<version>.exe` from the [Releases](https://github.com/JirkaachS/Lumen/releases) page.
+1. Grab [`LumenSetup-1.0.4.exe`](https://github.com/JirkaachS/Lumen/releases/download/v1.0.4/LumenSetup-1.0.4.exe) from the [Releases](https://github.com/JirkaachS/Lumen/releases) page.
 2. Run it. Tick **"Launch Lumen automatically when Windows starts"** if you want autostart.
 
 Or run the portable `Lumen.exe` directly — no installation required.
 
 ### macOS
-1. Download `Lumen-<version>.dmg`, open it and drag **Lumen** to Applications.
+1. Download [`Lumen-1.0.4.dmg`](https://github.com/JirkaachS/Lumen/releases/download/v1.0.4/Lumen-1.0.4.dmg), open it and drag **Lumen** to Applications.
 2. First launch: right-click → Open (unsigned build). Enable autostart from
    **Settings → Launch at system startup**.
 
